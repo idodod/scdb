@@ -245,6 +245,15 @@ func (seg *segment) Remove() error {
 	return os.Remove(seg.fd.Name())
 }
 
+func (seg *segment) Close() error {
+	if seg.closed {
+		return nil
+	}
+
+	seg.closed = true
+	return seg.fd.Close()
+}
+
 // return seg.file size
 func (seg *segment) Size() int64 {
 	return (int64(seg.currentBlockNumber) * int64(blockSize)) + int64(seg.currentBlockSize)
