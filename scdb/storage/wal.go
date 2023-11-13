@@ -23,6 +23,7 @@ WAL 구조체는 들어오는 쓰기 작업에 대한 내구성과 장애 허용
 options: WAL의 다양한 구성 옵션을 저장합니다.
 mu: 동시에 WAL 데이터 구조에 접근할 때 사용되는 동기화 매커니즘으로, sync.RWMutex를 사용하여 안전한 접근과 수정을 보장합니다.
 blockCache: 디스크 I/O를 줄여 읽기 성능을 향상시키기 위해 최근에 접근한 데이터 블록을 저장하는 LRU(Least Recently Used) 캐시입니다. uint64 타입의 키와 []byte 타입의 값을 가지는 lru.Cache 구조체를 사용하여 구현됩니다.
+
 English Explanation:
 The WAL struct represents a Write-Ahead Log structure that provides durability and fault tolerance for incoming write operations. It is composed of an activeSegment, which is the current segment file for new incoming writes, and olderSegments, a map of segment files used for reading operations.
 
