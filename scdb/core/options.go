@@ -45,7 +45,6 @@ var DefaultTxOptions = TxOptions{
 }
 
 func tempDir() string {
-	dir, _ := os.MkdirTemp("", "/scdb/tmp")
-
+	dir, _ := os.MkdirTemp("", "sc-temp")
 	return dir
 }

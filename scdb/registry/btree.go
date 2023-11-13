@@ -60,3 +60,81 @@ func (m *MemBTree) Del(key []byte) (*storage.ChunkPosition, bool) {
 func (m *MemBTree) Size() int {
 	return m.tree.Len()
 }
+
+func (m *MemBTree) Ascend(callback func(key []byte, pos *storage.ChunkPosition) (bool, error)) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	m.tree.Ascend(func(i btree.Item) bool {
+		cont, err := callback(i.(*item).key, i.(*item).pos)
+		if err != nil {
+			return false
+		}
+		return cont
+	})
+}
+
+func (m *MemBTree) Descend(callback func(key []byte, position *storage.ChunkPosition) (bool, error)) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	m.tree.Descend(func(i btree.Item) bool {
+		cont, err := callback(i.(*item).key, i.(*item).pos)
+		if err != nil {
+			return false
+		}
+		return cont
+	})
+}
+
+func (m *MemBTree) AscendRange(startKey, endKey []byte, callback func(key []byte, position *storage.ChunkPosition) (bool, error)) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	m.tree.AscendRange(&item{key: startKey}, &item{key: endKey}, func(i btree.Item) bool {
+		cont, err := callback(i.(*item).key, i.(*item).pos)
+		if err != nil {
+			return false
+		}
+		return cont
+	})
+}
+
+func (m *MemBTree) DescendRange(startKey, endKey []byte, callback func(key []byte, position *storage.ChunkPosition) (bool, error)) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	m.tree.DescendRange(&item{key: startKey}, &item{key: endKey}, func(i btree.Item) bool {
+		cont, err := callback(i.(*item).key, i.(*item).pos)
+		if err != nil {
+			return false
+		}
+		return cont
+	})
+}
+
+func (m *MemBTree) AscendGreaterOrEqual(key []byte, callback func(key []byte, position *storage.ChunkPosition) (bool, error)) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	m.tree.AscendGreaterOrEqual(&item{key: key}, func(i btree.Item) bool {
+		cont, err := callback(i.(*item).key, i.(*item).pos)
+		if err != nil {
+			return false
+		}
+		return cont
+	})
+}
+
+func (m *MemBTree) DescendLessOrEqual(key []byte, callback func(key []byte, position *storage.ChunkPosition) (bool, error)) {
+	m.lock.RLock()
+	defer m.lock.RUnlock()
+
+	m.tree.DescendLessOrEqual(&item{key: key}, func(i btree.Item) bool {
+		cont, err := callback(i.(*item).key, i.(*item).pos)
+		if err != nil {
+			return false
+		}
+		return cont
+	})
+}

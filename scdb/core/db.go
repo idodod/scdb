@@ -309,10 +309,10 @@ func (db *DB) Observe() (chan *Event, error) {
 	return db.observingCh, nil
 }
 
-func (db *DB) FindKeyAsc(callback func(k []byte, v []byte) (bool, error)) {
+func (db *DB) Ascend(callback func(k []byte, v []byte) (bool, error)) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-	db.registry.FindKeyAsc(func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+	db.registry.Ascend(func(key []byte, pos *storage.ChunkPosition) (bool, error) {
 		chunk, err := db.dataFiles.Read(pos)
 		if err != nil {
 			return false, err
@@ -324,11 +324,11 @@ func (db *DB) FindKeyAsc(callback func(k []byte, v []byte) (bool, error)) {
 	})
 }
 
-func (db *DB) FindKeyRangeAsc(startKey, endKey []byte, callback func(k []byte, v []byte) (bool, error)) {
+func (db *DB) AscendRange(startKey, endKey []byte, callback func(k []byte, v []byte) (bool, error)) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	db.registry.FindKeyRangeAsc(startKey, endKey, func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+	db.registry.AscendRange(startKey, endKey, func(key []byte, pos *storage.ChunkPosition) (bool, error) {
 		chunk, err := db.dataFiles.Read(pos)
 		if err != nil {
 			return false, nil
@@ -340,11 +340,11 @@ func (db *DB) FindKeyRangeAsc(startKey, endKey []byte, callback func(k []byte, v
 	})
 }
 
-func (db *DB) FindAllKeysAsc(key []byte, callback func(k []byte, v []byte) (bool, error)) {
+func (db *DB) AscendGreaterOrEqual(key []byte, callback func(k []byte, v []byte) (bool, error)) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	db.registry.FindAllKeysAsc(key, func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+	db.registry.AscendGreaterOrEqual(key, func(key []byte, pos *storage.ChunkPosition) (bool, error) {
 		chunk, err := db.dataFiles.Read(pos)
 		if err != nil {
 			return false, nil
@@ -356,7 +356,7 @@ func (db *DB) FindAllKeysAsc(key []byte, callback func(k []byte, v []byte) (bool
 	})
 }
 
-func (db *DB) FindKeysASC(pattern []byte, filterExpr bool, callback func(key []byte) (bool, error)) {
+func (db *DB) AscendKeys(pattern []byte, filterExpr bool, callback func(key []byte) (bool, error)) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -364,7 +364,7 @@ func (db *DB) FindKeysASC(pattern []byte, filterExpr bool, callback func(key []b
 	if len(pattern) > 0 {
 		reg = regexp.MustCompile(string(pattern))
 	}
-	db.registry.FindKeyAsc(func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+	db.registry.Ascend(func(key []byte, pos *storage.ChunkPosition) (bool, error) {
 		if reg == nil || reg.Match(key) {
 			var invalid bool
 			if filterExpr {
@@ -385,11 +385,11 @@ func (db *DB) FindKeysASC(pattern []byte, filterExpr bool, callback func(key []b
 	})
 }
 
-func (db *DB) FindKeyDesc(callback func(k []byte, v []byte) (bool, error)) {
+func (db *DB) Descend(callback func(k []byte, v []byte) (bool, error)) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
-	db.registry.FindKeyDesc(func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+	db.registry.Descend(func(key []byte, pos *storage.ChunkPosition) (bool, error) {
 		chunk, err := db.dataFiles.Read(pos)
 		if err != nil {
 			return false, nil
@@ -401,10 +401,10 @@ func (db *DB) FindKeyDesc(callback func(k []byte, v []byte) (bool, error)) {
 	})
 }
 
-func (db *DB) FindKeyRangeDesc(startKey, endKey []byte, callback func(key []byte, v []byte) (bool, error)) {
+func (db *DB) DescendRange(startKey, endKey []byte, callback func(key []byte, v []byte) (bool, error)) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
-	db.registry.FindKeyRangeDesc(startKey, endKey, func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+	db.registry.DescendRange(startKey, endKey, func(key []byte, pos *storage.ChunkPosition) (bool, error) {
 		chunk, err := db.dataFiles.Read(pos)
 		if err != nil {
 			return false, nil
@@ -416,10 +416,10 @@ func (db *DB) FindKeyRangeDesc(startKey, endKey []byte, callback func(key []byte
 	})
 }
 
-func (db *DB) FindAllKeysDesc(key []byte, callback func(key []byte, v []byte) (bool, error)) {
+func (db *DB) DescendLessOrEqual(key []byte, callback func(key []byte, v []byte) (bool, error)) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
-	db.registry.FindAllKeysDesc(key, func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+	db.registry.DescendLessOrEqual(key, func(key []byte, pos *storage.ChunkPosition) (bool, error) {
 		chunk, err := db.dataFiles.Read(pos)
 		if err != nil {
 			return false, nil
@@ -431,7 +431,7 @@ func (db *DB) FindAllKeysDesc(key []byte, callback func(key []byte, v []byte) (b
 	})
 }
 
-func (db *DB) FindKeysDESC(pattern []byte, filterExpr bool, callback func(key []byte) (bool, error)) {
+func (db *DB) DescendKeys(pattern []byte, filterExpr bool, callback func(key []byte) (bool, error)) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 	var reg *regexp.Regexp
@@ -439,7 +439,7 @@ func (db *DB) FindKeysDESC(pattern []byte, filterExpr bool, callback func(key []
 		reg = regexp.MustCompile(string(pattern))
 	}
 
-	db.registry.FindKeyDesc(func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+	db.registry.Descend(func(key []byte, pos *storage.ChunkPosition) (bool, error) {
 		if reg == nil || reg.Match(key) {
 			var invalid bool
 			if filterExpr {
@@ -542,7 +542,7 @@ func (db *DB) DeleteExpiredKeys(timeout time.Duration) error {
 		for {
 			// select 100 keys from the db.index
 			positions := make([]*storage.ChunkPosition, 0, 100)
-			db.registry.FindAllKeysAsc(db.expiredCursorKey, func(k []byte, pos *storage.ChunkPosition) (bool, error) {
+			db.registry.AscendGreaterOrEqual(db.expiredCursorKey, func(k []byte, pos *storage.ChunkPosition) (bool, error) {
 				positions = append(positions, pos)
 				if len(positions) >= 100 {
 					return false, nil
