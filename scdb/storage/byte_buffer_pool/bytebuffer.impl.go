@@ -162,3 +162,5 @@ type callSizeInterface interface {
 	Less(i, j int) bool
 	Swap(i, j int)
 }
+
+var _ callSizeInterface = (*callSizes)(nil)

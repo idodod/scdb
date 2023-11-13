@@ -1,4 +1,4 @@
-module solid.core.database
+module github.com/sjy-dv/scdb
 
 go 1.21.0
 
