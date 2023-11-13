@@ -7,6 +7,12 @@ type Accessor interface {
 	Get(key []byte) *storage.ChunkPosition
 	Del(key []byte) (*storage.ChunkPosition, bool)
 	Size() int
+	FindKeyAsc(callback func(key []byte, pos *storage.ChunkPosition) (bool, error))
+	FindKeyRangeAsc(startKey, endKey []byte, callback func(key []byte, pos *storage.ChunkPosition) (bool, error))
+	FindAllKeysAsc(key []byte, callback func(key []byte, pos *storage.ChunkPosition) (bool, error))
+	FindKeyDesc(callback func(key []byte, pos *storage.ChunkPosition) (bool, error))
+	FindKeyRangeDesc(startKey, endKey []byte, callback func(key []byte, pos *storage.ChunkPosition) (bool, error))
+	FindAllKeysDesc(key []byte, callback func(key []byte, pos *storage.ChunkPosition) (bool, error))
 }
 
 type AccessorType = byte

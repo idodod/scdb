@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"time"
 
@@ -305,6 +306,98 @@ func (db *DB) Observe() (chan *Event, error) {
 		return nil, ErrWatchDisabled
 	}
 	return db.observingCh, nil
+}
+
+func (db *DB) FindKeyAsc(callback func(k []byte, v []byte) (bool, error)) {
+	db.mu.Lock()
+	defer db.mu.Unlock()
+	db.registry.FindKeyAsc(func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+		chunk, err := db.dataFiles.Read(pos)
+		if err != nil {
+			return false, err
+		}
+		if val := db.checkValue(chunk); val != nil {
+			return callback(key, val)
+		}
+		return true, nil
+	})
+}
+
+func (db *DB) FindKeyRangeAsc(startKey, endKey []byte, callback func(k []byte, v []byte) (bool, error)) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	db.registry.FindKeyRangeAsc(startKey, endKey, func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+		chunk, err := db.dataFiles.Read(pos)
+		if err != nil {
+			return false, nil
+		}
+		if val := db.checkValue(chunk); val != nil {
+			return callback(key, val)
+		}
+		return true, nil
+	})
+}
+
+func (db *DB) FindKeyAllKeysAsc(key []byte, callback func(k []byte, v []byte) (bool, error)) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	db.registry.FindAllKeysAsc(key, func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+		chunk, err := db.dataFiles.Read(pos)
+		if err != nil {
+			return false, nil
+		}
+		if val := db.checkValue(chunk); val != nil {
+			return callback(key, val)
+		}
+		return true, nil
+	})
+}
+
+func (db *DB) FindKeysASC(pattern []byte, filterExpr bool, callback func(key []byte) (bool, error)) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	var reg *regexp.Regexp
+	if len(pattern) > 0 {
+		reg = regexp.MustCompile(string(pattern))
+	}
+	db.registry.FindKeyAsc(func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+		if reg == nil || reg.Match(key) {
+			var invalid bool
+			if filterExpr {
+				chunk, err := db.dataFiles.Read(pos)
+				if err != nil {
+					return false, err
+				}
+				if value := db.checkValue(chunk); value == nil {
+					invalid = true
+				}
+			}
+			if invalid {
+				return true, nil
+			}
+			return callback(key)
+		}
+		return true, nil
+	})
+}
+
+func (db *DB) FindKeyDesc(callback func(k []byte, v []byte) (bool, error)) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+
+	db.registry.FindKeyDesc(func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+		chunk, err := db.dataFiles.Read(pos)
+		if err != nil {
+			return false, nil
+		}
+		if value := db.checkValue(chunk); value != nil {
+			return callback(key, value)
+		}
+		return true, nil
+	})
 }
 
 func (db *DB) checkValue(chunk []byte) []byte {
