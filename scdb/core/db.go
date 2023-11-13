@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -34,7 +35,7 @@ type DB struct {
 	mu               sync.RWMutex
 	closed           bool
 	mergeRunning     uint32
-	batchPool        sync.Pool
+	transactionPool  sync.Pool
 	recordPool       sync.Pool
 	encodeHeader     []byte
 	observingCh      chan *Event
@@ -71,12 +72,12 @@ func Open(opt Options) (*DB, error) {
 	}
 
 	db := &DB{
-		registry:     registry.NewAccessor(),
-		options:      opt,
-		fileLock:     fileLock,
-		batchPool:    sync.Pool{New: newBatch},
-		recordPool:   sync.Pool{New: newRecord},
-		encodeHeader: make([]byte, maxLogRecordHeaderSize),
+		registry:        registry.NewAccessor(),
+		options:         opt,
+		fileLock:        fileLock,
+		transactionPool: sync.Pool{New: newTransaction},
+		recordPool:      sync.Pool{New: newRecord},
+		encodeHeader:    make([]byte, maxLogRecordHeaderSize),
 	}
 
 	if db.dataFiles, err = db.openWalFiles(); err != nil {
@@ -199,106 +200,106 @@ func (db *DB) Stat() *Stat {
 }
 
 func (db *DB) Save(key []byte, value []byte) error {
-	batch := db.batchPool.Get().(*Batch)
+	tx := db.transactionPool.Get().(*Transaction)
 	defer func() {
-		batch.reset()
-		db.batchPool.Put(batch)
+		tx.reset()
+		db.transactionPool.Put(tx)
 	}()
-	batch.init(false, false, db)
-	if err := batch.Save(key, value); err != nil {
-		_ = batch.Rollback()
+	tx.init(false, false, db)
+	if err := tx.Save(key, value); err != nil {
+		_ = tx.Rollback()
 		return err
 	}
-	return batch.Commit()
+	return tx.Commit()
 }
 
 func (db *DB) SaveWithTTL(key []byte, value []byte, ttl time.Duration) error {
-	batch := db.batchPool.Get().(*Batch)
+	tx := db.transactionPool.Get().(*Transaction)
 	defer func() {
-		batch.reset()
-		db.batchPool.Put(batch)
+		tx.reset()
+		db.transactionPool.Put(tx)
 	}()
-	batch.init(false, false, db)
-	if err := batch.SaveWithTTL(key, value, ttl); err != nil {
-		_ = batch.Rollback()
+	tx.init(false, false, db)
+	if err := tx.SaveWithTTL(key, value, ttl); err != nil {
+		_ = tx.Rollback()
 		return err
 	}
-	return batch.Commit()
+	return tx.Commit()
 }
 
 func (db *DB) Get(key []byte) ([]byte, error) {
-	batch := db.batchPool.Get().(*Batch)
-	batch.init(true, false, db)
+	tx := db.transactionPool.Get().(*Transaction)
+	tx.init(true, false, db)
 	defer func() {
-		_ = batch.Commit()
-		batch.reset()
-		db.batchPool.Put(batch)
+		_ = tx.Commit()
+		tx.reset()
+		db.transactionPool.Put(tx)
 	}()
-	return batch.Get(key)
+	return tx.Get(key)
 }
 
 func (db *DB) Delete(key []byte) error {
-	batch := db.batchPool.Get().(*Batch)
+	tx := db.transactionPool.Get().(*Transaction)
 	defer func() {
-		batch.reset()
-		db.batchPool.Put(batch)
+		tx.reset()
+		db.transactionPool.Put(tx)
 	}()
-	batch.init(false, false, db)
-	if err := batch.Delete(key); err != nil {
-		_ = batch.Rollback()
+	tx.init(false, false, db)
+	if err := tx.Delete(key); err != nil {
+		_ = tx.Rollback()
 		return err
 	}
-	return batch.Commit()
+	return tx.Commit()
 }
 
 func (db *DB) Exist(key []byte) (bool, error) {
-	batch := db.batchPool.Get().(*Batch)
-	batch.init(true, false, db)
+	tx := db.transactionPool.Get().(*Transaction)
+	tx.init(true, false, db)
 	defer func() {
-		_ = batch.Commit()
-		batch.reset()
-		db.batchPool.Put(batch)
+		_ = tx.Commit()
+		tx.reset()
+		db.transactionPool.Put(tx)
 	}()
-	return batch.Exist(key)
+	return tx.Exist(key)
 }
 
 func (db *DB) Expire(key []byte, ttl time.Duration) error {
-	batch := db.batchPool.Get().(*Batch)
+	tx := db.transactionPool.Get().(*Transaction)
 	defer func() {
-		batch.reset()
-		db.batchPool.Put(batch)
+		tx.reset()
+		db.transactionPool.Put(tx)
 	}()
-	batch.init(false, false, db)
-	if err := batch.Expire(key, ttl); err != nil {
-		_ = batch.Rollback()
+	tx.init(false, false, db)
+	if err := tx.Expire(key, ttl); err != nil {
+		_ = tx.Rollback()
 		return err
 	}
-	return batch.Commit()
+	return tx.Commit()
 }
 
 func (db *DB) TTL(key []byte) (time.Duration, error) {
-	batch := db.batchPool.Get().(*Batch)
-	batch.init(true, false, db)
+	tx := db.transactionPool.Get().(*Transaction)
+	tx.init(true, false, db)
 	defer func() {
-		_ = batch.Commit()
-		batch.reset()
-		db.batchPool.Put(batch)
+		_ = tx.Commit()
+		tx.reset()
+		db.transactionPool.Put(tx)
 	}()
-	return batch.TTL(key)
+	return tx.TTL(key)
 }
 
 func (db *DB) Persist(key []byte) error {
-	batch := db.batchPool.Get().(*Batch)
+	tx := db.transactionPool.Get().(*Transaction)
 	defer func() {
-		batch.reset()
-		db.batchPool.Put(batch)
+		tx.reset()
+		db.transactionPool.Put(tx)
 	}()
-	batch.init(false, false, db)
-	if err := batch.Persist(key); err != nil {
-		_ = batch.Rollback()
+	tx.init(false, false, db)
+	if err := tx.Persist(key); err != nil {
+		_ = tx.Rollback()
 		return err
 	}
-	return batch.Commit()
+	return tx.Commit()
 }
 
 func (db *DB) Observe() (chan *Event, error) {
@@ -339,7 +340,7 @@ func (db *DB) FindKeyRangeAsc(startKey, endKey []byte, callback func(k []byte, v
 	})
 }
 
-func (db *DB) FindKeyAllKeysAsc(key []byte, callback func(k []byte, v []byte) (bool, error)) {
+func (db *DB) FindAllKeysAsc(key []byte, callback func(k []byte, v []byte) (bool, error)) {
 	db.mu.RLock()
 	defer db.mu.RUnlock()
 
@@ -400,6 +401,65 @@ func (db *DB) FindKeyDesc(callback func(k []byte, v []byte) (bool, error)) {
 	})
 }
 
+func (db *DB) FindKeyRangeDesc(startKey, endKey []byte, callback func(key []byte, v []byte) (bool, error)) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	db.registry.FindKeyRangeDesc(startKey, endKey, func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+		chunk, err := db.dataFiles.Read(pos)
+		if err != nil {
+			return false, nil
+		}
+		if value := db.checkValue(chunk); value != nil {
+			return callback(key, value)
+		}
+		return true, nil
+	})
+}
+
+func (db *DB) FindAllKeysDesc(key []byte, callback func(key []byte, v []byte) (bool, error)) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	db.registry.FindAllKeysDesc(key, func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+		chunk, err := db.dataFiles.Read(pos)
+		if err != nil {
+			return false, nil
+		}
+		if value := db.checkValue(chunk); value != nil {
+			return callback(key, value)
+		}
+		return true, nil
+	})
+}
+
+func (db *DB) FindKeysDESC(pattern []byte, filterExpr bool, callback func(key []byte) (bool, error)) {
+	db.mu.RLock()
+	defer db.mu.RUnlock()
+	var reg *regexp.Regexp
+	if len(pattern) > 0 {
+		reg = regexp.MustCompile(string(pattern))
+	}
+
+	db.registry.FindKeyDesc(func(key []byte, pos *storage.ChunkPosition) (bool, error) {
+		if reg == nil || reg.Match(key) {
+			var invalid bool
+			if filterExpr {
+				chunk, err := db.dataFiles.Read(pos)
+				if err != nil {
+					return false, err
+				}
+				if value := db.checkValue(chunk); value == nil {
+					invalid = true
+				}
+			}
+			if invalid {
+				return true, nil
+			}
+			return callback(key)
+		}
+		return true, nil
+	})
+}
+
 func (db *DB) checkValue(chunk []byte) []byte {
 	record := decodeLogRecord(chunk)
 	now := time.Now().UnixNano()
@@ -434,12 +494,12 @@ func (db *DB) loadIndexFromWAL() error {
 		// decode and get log record
 		record := decodeLogRecord(chunk)
 
-		if record.Type == LogRecordBatchFinished {
-			batchId, err := sysid.ParseBytes(record.Key)
+		if record.Type == LogRecordTransactionFinished {
+			txId, err := sysid.ParseBytes(record.Key)
 			if err != nil {
 				return err
 			}
-			for _, idxRecord := range indexRecords[uint64(batchId)] {
+			for _, idxRecord := range indexRecords[uint64(txId)] {
 				if idxRecord.recordType == LogRecordNormal {
 					db.registry.Save(idxRecord.key, idxRecord.position)
 				}
@@ -447,8 +507,8 @@ func (db *DB) loadIndexFromWAL() error {
 					db.registry.Del(idxRecord.key)
 				}
 			}
-			delete(indexRecords, uint64(batchId))
-		} else if record.Type == LogRecordNormal && record.BatchId == mergeFinishedBatchID {
+			delete(indexRecords, uint64(txId))
+		} else if record.Type == LogRecordNormal && record.TxId == mergeFinishedTxID {
 			db.registry.Save(record.Key, position)
 		} else {
 			// expired records should not be indexed
@@ -457,7 +517,7 @@ func (db *DB) loadIndexFromWAL() error {
 				continue
 			}
 			// put the record into the temporary indexRecords
-			indexRecords[record.BatchId] = append(indexRecords[record.BatchId],
+			indexRecords[record.TxId] = append(indexRecords[record.TxId],
 				&IndexRecord{
 					key:        record.Key,
 					recordType: record.Type,
@@ -466,4 +526,58 @@ func (db *DB) loadIndexFromWAL() error {
 		}
 	}
 	return nil
+}
+
+func (db *DB) DeleteExpiredKeys(timeout time.Duration) error {
+	// set timeout
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	done := make(chan struct{}, 1)
+
+	var innerErr error
+	now := time.Now().UnixNano()
+	go func(ctx context.Context) {
+		db.mu.Lock()
+		defer db.mu.Unlock()
+		for {
+			// select 100 keys from the db.index
+			positions := make([]*storage.ChunkPosition, 0, 100)
+			db.registry.FindAllKeysAsc(db.expiredCursorKey, func(k []byte, pos *storage.ChunkPosition) (bool, error) {
+				positions = append(positions, pos)
+				if len(positions) >= 100 {
+					return false, nil
+				}
+				return true, nil
+			})
+
+			// If keys in the db.index has been traversed, len(positions) will be 0.
+			if len(positions) == 0 {
+				db.expiredCursorKey = nil
+				done <- struct{}{}
+				return
+			}
+
+			// delete from index if the key is expired.
+			for _, pos := range positions {
+				chunk, err := db.dataFiles.Read(pos)
+				if err != nil {
+					innerErr = err
+					done <- struct{}{}
+					return
+				}
+				record := decodeLogRecord(chunk)
+				if record.IsExpired(now) {
+					db.registry.Del(record.Key)
+				}
+				db.expiredCursorKey = record.Key
+			}
+		}
+	}(ctx)
+
+	select {
+	case <-ctx.Done():
+		return innerErr
+	case <-done:
+		return nil
+	}
 }

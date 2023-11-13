@@ -13,7 +13,7 @@ type Options struct {
 	WatchQueueSize uint64
 }
 
-type BatchOptions struct {
+type TxOptions struct {
 	Sync     bool
 	ReadOnly bool
 }
@@ -39,7 +39,7 @@ var DefaultOptions = Options{
 	WatchQueueSize: 0,
 }
 
-var DefaultBatchOptions = BatchOptions{
+var DefaultTxOptions = TxOptions{
 	Sync:     true,
 	ReadOnly: false,
 }

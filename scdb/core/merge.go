@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	mergeDirSuffixName   = "-merge"
-	mergeFinishedBatchID = 0
+	mergeDirSuffixName = "-merge"
+	mergeFinishedTxID  = 0
 )
 
 func (db *DB) Merge(reopenAfterDone bool) error {
@@ -108,7 +108,7 @@ func (db *DB) doMerge() error {
 			indexPos := db.registry.Get(record.Key)
 			db.mu.RUnlock()
 			if indexPos != nil && positionEquals(indexPos, position) {
-				record.BatchId = mergeFinishedBatchID
+				record.TxId = mergeFinishedTxID
 				newPosition, err := mergeDB.dataFiles.Write(encodeLogRecord(record, mergeDB.encodeHeader, buf))
 				if err != nil {
 					return err

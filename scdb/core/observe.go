@@ -13,10 +13,10 @@ const (
 )
 
 type Event struct {
-	Action  ObserveActionType
-	Key     []byte
-	Value   []byte
-	BatchId uint64
+	Action ObserveActionType
+	Key    []byte
+	Value  []byte
+	TxId   uint64
 }
 
 type Observer struct {

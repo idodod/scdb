@@ -12,19 +12,19 @@ import (
 	bytebufferpool "github.com/sjy-dv/scdb/scdb/storage/byte_buffer_pool"
 )
 
-type Batch struct {
+type Transaction struct {
 	db            *DB
 	pendingWrites []*LogRecord
-	options       BatchOptions
+	options       TxOptions
 	mu            sync.RWMutex
 	iscommit      bool
 	isrollback    bool
-	batchId       *sysid.Node
+	txId          *sysid.Node
 	buffers       []*bytebufferpool.ByteBuffer
 }
 
-func (db *DB) NewBatch(opts BatchOptions) *Batch {
-	batch := &Batch{
+func (db *DB) NewTransaction(opts TxOptions) *Transaction {
+	tx := &Transaction{
 		db:         db,
 		options:    opts,
 		iscommit:   false,
@@ -37,21 +37,21 @@ func (db *DB) NewBatch(opts BatchOptions) *Batch {
 		if err != nil {
 			panic(fmt.Sprintf("sysid.NewNode failed: %v", err))
 		}
-		batch.batchId = node
+		tx.txId = node
 	}
-	batch.lock()
-	return batch
+	tx.lock()
+	return tx
 }
 
-func newBatch() interface{} {
+func newTransaction() interface{} {
 	node, err := sysid.NewNode(rand.New(
 		rand.NewSource(time.Now().UnixNano())).Int63n(4) + 1)
 	if err != nil {
 		panic(fmt.Sprintf("sysid.NewNode failed: %v", err))
 	}
-	return &Batch{
-		options: DefaultBatchOptions,
-		batchId: node,
+	return &Transaction{
+		options: DefaultTxOptions,
+		txId:    node,
 	}
 }
 
@@ -59,121 +59,121 @@ func newRecord() interface{} {
 	return &LogRecord{}
 }
 
-func (b *Batch) init(rdonly, sync bool, db *DB) *Batch {
-	b.options.ReadOnly = rdonly
-	b.options.Sync = sync
-	b.db = db
-	b.lock()
-	return b
+func (tx *Transaction) init(rdonly, sync bool, db *DB) *Transaction {
+	tx.options.ReadOnly = rdonly
+	tx.options.Sync = sync
+	tx.db = db
+	tx.lock()
+	return tx
 }
 
-func (b *Batch) reset() {
-	b.db = nil
-	b.pendingWrites = b.pendingWrites[:0]
-	b.iscommit = false
-	b.isrollback = false
-	for _, buf := range b.buffers {
+func (tx *Transaction) reset() {
+	tx.db = nil
+	tx.pendingWrites = tx.pendingWrites[:0]
+	tx.iscommit = false
+	tx.isrollback = false
+	for _, buf := range tx.buffers {
 		bytebufferpool.Put(buf)
 	}
-	b.buffers = b.buffers[:0]
+	tx.buffers = tx.buffers[:0]
 }
 
-func (b *Batch) lock() {
-	if b.options.ReadOnly {
-		b.db.mu.RLock()
+func (tx *Transaction) lock() {
+	if tx.options.ReadOnly {
+		tx.db.mu.RLock()
 	} else {
-		b.db.mu.Lock()
+		tx.db.mu.Lock()
 	}
 }
 
-func (b *Batch) unlock() {
-	if b.options.ReadOnly {
-		b.db.mu.RUnlock()
+func (tx *Transaction) unlock() {
+	if tx.options.ReadOnly {
+		tx.db.mu.RUnlock()
 	} else {
-		b.db.mu.Unlock()
+		tx.db.mu.Unlock()
 	}
 }
 
-func (b *Batch) Save(key []byte, value []byte) error {
+func (tx *Transaction) Save(key []byte, value []byte) error {
 	if len(key) == 0 {
 		return errors.New("empty key")
 	}
-	if b.db.closed {
+	if tx.db.closed {
 		return errors.New("db is closing")
 	}
-	if b.options.ReadOnly {
-		return errors.New("batch is readonly")
+	if tx.options.ReadOnly {
+		return errors.New("Transaction is readonly")
 	}
 
-	b.mu.Lock()
+	tx.mu.Lock()
 	var record *LogRecord
-	for i := len(b.pendingWrites) - 1; i >= 0; i-- {
-		if bytes.Equal(key, b.pendingWrites[i].Key) {
-			record = b.pendingWrites[i]
+	for i := len(tx.pendingWrites) - 1; i >= 0; i-- {
+		if bytes.Equal(key, tx.pendingWrites[i].Key) {
+			record = tx.pendingWrites[i]
 			break
 		}
 	}
 	if record == nil {
-		record = b.db.recordPool.Get().(*LogRecord)
-		b.pendingWrites = append(b.pendingWrites, record)
+		record = tx.db.recordPool.Get().(*LogRecord)
+		tx.pendingWrites = append(tx.pendingWrites, record)
 	}
 
 	record.Key, record.Value = key, value
 	record.Type, record.Expire = LogRecordNormal, 0
-	b.mu.Unlock()
+	tx.mu.Unlock()
 
 	return nil
 }
 
-func (b *Batch) SaveWithTTL(key []byte, value []byte, ttl time.Duration) error {
+func (tx *Transaction) SaveWithTTL(key []byte, value []byte, ttl time.Duration) error {
 	if len(key) == 0 {
 		return errors.New("empty key")
 	}
-	if b.db.closed {
+	if tx.db.closed {
 		return errors.New("db is closing")
 	}
-	if b.options.ReadOnly {
-		return errors.New("batch is readonly")
+	if tx.options.ReadOnly {
+		return errors.New("Transaction is readonly")
 	}
 
-	b.mu.Lock()
+	tx.mu.Lock()
 	var record *LogRecord
-	for i := len(b.pendingWrites) - 1; i >= 0; i-- {
-		if bytes.Equal(key, b.pendingWrites[i].Key) {
-			record = b.pendingWrites[i]
+	for i := len(tx.pendingWrites) - 1; i >= 0; i-- {
+		if bytes.Equal(key, tx.pendingWrites[i].Key) {
+			record = tx.pendingWrites[i]
 			break
 		}
 	}
 	if record == nil {
-		record = b.db.recordPool.Get().(*LogRecord)
-		b.pendingWrites = append(b.pendingWrites, record)
+		record = tx.db.recordPool.Get().(*LogRecord)
+		tx.pendingWrites = append(tx.pendingWrites, record)
 	}
 
 	record.Key, record.Value = key, value
 	record.Type, record.Expire = LogRecordNormal, time.Now().Add(ttl).UnixNano()
-	b.mu.Unlock()
+	tx.mu.Unlock()
 
 	return nil
 }
 
-func (b *Batch) Get(key []byte) ([]byte, error) {
+func (tx *Transaction) Get(key []byte) ([]byte, error) {
 	if len(key) == 0 {
 		return nil, errors.New("empty key")
 	}
-	if b.db.closed {
+	if tx.db.closed {
 		return nil, errors.New("db is closed")
 	}
 
 	now := time.Now().UnixNano()
-	b.mu.RLock()
+	tx.mu.RLock()
 	var record *LogRecord
-	for i := len(b.pendingWrites) - 1; i >= 0; i-- {
-		if bytes.Equal(key, b.pendingWrites[i].Key) {
-			record = b.pendingWrites[i]
+	for i := len(tx.pendingWrites) - 1; i >= 0; i-- {
+		if bytes.Equal(key, tx.pendingWrites[i].Key) {
+			record = tx.pendingWrites[i]
 			break
 		}
 	}
-	b.mu.RUnlock()
+	tx.mu.RUnlock()
 
 	if record != nil {
 		if record.Type == LogRecordDeleted || record.IsExpired(now) {
@@ -182,11 +182,11 @@ func (b *Batch) Get(key []byte) ([]byte, error) {
 		return record.Value, nil
 	}
 
-	chunkPosition := b.db.registry.Get(key)
+	chunkPosition := tx.db.registry.Get(key)
 	if chunkPosition == nil {
 		return nil, errors.New("key not found in database")
 	}
-	chunk, err := b.db.dataFiles.Read(chunkPosition)
+	chunk, err := tx.db.dataFiles.Read(chunkPosition)
 	if err != nil {
 		return nil, err
 	}
@@ -196,104 +196,104 @@ func (b *Batch) Get(key []byte) ([]byte, error) {
 		panic("Deleted data cannot exist in the index")
 	}
 	if record.IsExpired(now) {
-		b.db.registry.Del(record.Key)
+		tx.db.registry.Del(record.Key)
 		return nil, errors.New("key not found in database")
 	}
 	return record.Value, nil
 }
 
-func (b *Batch) Delete(key []byte) error {
+func (tx *Transaction) Delete(key []byte) error {
 	if len(key) == 0 {
 		return errors.New("key is empty")
 	}
-	if b.db.closed {
+	if tx.db.closed {
 		return errors.New("db is closed")
 	}
-	if b.options.ReadOnly {
-		return errors.New("batch is read-only")
+	if tx.options.ReadOnly {
+		return errors.New("Transaction is read-only")
 	}
 
-	b.mu.Lock()
+	tx.mu.Lock()
 	var exist bool
-	for i := len(b.pendingWrites) - 1; i >= 0; i-- {
-		if bytes.Equal(key, b.pendingWrites[i].Key) {
-			b.pendingWrites[i].Type = LogRecordDeleted
-			b.pendingWrites[i].Value = nil
-			b.pendingWrites[i].Expire = 0
+	for i := len(tx.pendingWrites) - 1; i >= 0; i-- {
+		if bytes.Equal(key, tx.pendingWrites[i].Key) {
+			tx.pendingWrites[i].Type = LogRecordDeleted
+			tx.pendingWrites[i].Value = nil
+			tx.pendingWrites[i].Expire = 0
 			exist = true
 			break
 		}
 	}
 	if !exist {
-		b.pendingWrites = append(b.pendingWrites, &LogRecord{
+		tx.pendingWrites = append(tx.pendingWrites, &LogRecord{
 			Key:  key,
 			Type: LogRecordDeleted,
 		})
 	}
-	b.mu.Unlock()
+	tx.mu.Unlock()
 
 	return nil
 }
 
-func (b *Batch) Exist(key []byte) (bool, error) {
+func (tx *Transaction) Exist(key []byte) (bool, error) {
 	if len(key) == 0 {
 		return false, ErrKeyIsEmpty
 	}
-	if b.db.closed {
+	if tx.db.closed {
 		return false, ErrDBClosed
 	}
 
 	now := time.Now().UnixNano()
-	b.mu.RLock()
+	tx.mu.RLock()
 	var record *LogRecord
-	for i := len(b.pendingWrites) - 1; i >= 0; i-- {
-		if bytes.Equal(key, b.pendingWrites[i].Key) {
-			record = b.pendingWrites[i]
+	for i := len(tx.pendingWrites) - 1; i >= 0; i-- {
+		if bytes.Equal(key, tx.pendingWrites[i].Key) {
+			record = tx.pendingWrites[i]
 			break
 		}
 	}
-	b.mu.RUnlock()
+	tx.mu.RUnlock()
 
 	if record != nil {
 		return record.Type != LogRecordDeleted && !record.IsExpired(now), nil
 	}
 
-	position := b.db.registry.Get(key)
+	position := tx.db.registry.Get(key)
 	if position == nil {
 		return false, nil
 	}
 
-	chunk, err := b.db.dataFiles.Read(position)
+	chunk, err := tx.db.dataFiles.Read(position)
 	if err != nil {
 		return false, err
 	}
 
 	record = decodeLogRecord(chunk)
 	if record.Type == LogRecordDeleted || record.IsExpired(now) {
-		b.db.registry.Del(record.Key)
+		tx.db.registry.Del(record.Key)
 		return false, nil
 	}
 	return true, nil
 }
 
-func (b *Batch) Expire(key []byte, ttl time.Duration) error {
+func (tx *Transaction) Expire(key []byte, ttl time.Duration) error {
 	if len(key) == 0 {
 		return ErrKeyIsEmpty
 	}
-	if b.db.closed {
+	if tx.db.closed {
 		return ErrDBClosed
 	}
-	if b.options.ReadOnly {
+	if tx.options.ReadOnly {
 		return ErrReadOnlyBatch
 	}
 
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	tx.mu.Lock()
+	defer tx.mu.Unlock()
 
 	var record *LogRecord
-	for i := len(b.pendingWrites) - 1; i >= 0; i-- {
-		if bytes.Equal(key, b.pendingWrites[i].Key) {
-			record = b.pendingWrites[i]
+	for i := len(tx.pendingWrites) - 1; i >= 0; i-- {
+		if bytes.Equal(key, tx.pendingWrites[i].Key) {
+			record = tx.pendingWrites[i]
 			break
 		}
 	}
@@ -304,11 +304,11 @@ func (b *Batch) Expire(key []byte, ttl time.Duration) error {
 		}
 		record.Expire = time.Now().Add(ttl).UnixNano()
 	} else {
-		position := b.db.registry.Get(key)
+		position := tx.db.registry.Get(key)
 		if position == nil {
 			return ErrKeyNotFound
 		}
-		chunk, err := b.db.dataFiles.Read(position)
+		chunk, err := tx.db.dataFiles.Read(position)
 		if err != nil {
 			return err
 		}
@@ -316,33 +316,33 @@ func (b *Batch) Expire(key []byte, ttl time.Duration) error {
 		now := time.Now()
 		record = decodeLogRecord(chunk)
 		if record.Type == LogRecordDeleted || record.IsExpired(now.UnixNano()) {
-			b.db.registry.Del(key)
+			tx.db.registry.Del(key)
 			return ErrKeyNotFound
 		}
 		record.Expire = now.Add(ttl).UnixNano()
-		b.pendingWrites = append(b.pendingWrites, record)
+		tx.pendingWrites = append(tx.pendingWrites, record)
 	}
 
 	return nil
 }
 
-func (b *Batch) TTL(key []byte) (time.Duration, error) {
+func (tx *Transaction) TTL(key []byte) (time.Duration, error) {
 	if len(key) == 0 {
 		return -1, ErrKeyIsEmpty
 	}
-	if b.db.closed {
+	if tx.db.closed {
 		return -1, ErrDBClosed
 	}
 
 	now := time.Now()
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	tx.mu.Lock()
+	defer tx.mu.Unlock()
 
-	if len(b.pendingWrites) > 0 {
+	if len(tx.pendingWrites) > 0 {
 		var record *LogRecord
-		for i := len(b.pendingWrites) - 1; i >= 0; i-- {
-			if bytes.Equal(key, b.pendingWrites[i].Key) {
-				record = b.pendingWrites[i]
+		for i := len(tx.pendingWrites) - 1; i >= 0; i-- {
+			if bytes.Equal(key, tx.pendingWrites[i].Key) {
+				record = tx.pendingWrites[i]
 				break
 			}
 		}
@@ -357,11 +357,11 @@ func (b *Batch) TTL(key []byte) (time.Duration, error) {
 		}
 	}
 
-	position := b.db.registry.Get(key)
+	position := tx.db.registry.Get(key)
 	if position == nil {
 		return -1, ErrKeyNotFound
 	}
-	chunk, err := b.db.dataFiles.Read(position)
+	chunk, err := tx.db.dataFiles.Read(position)
 	if err != nil {
 		return -1, err
 	}
@@ -371,7 +371,7 @@ func (b *Batch) TTL(key []byte) (time.Duration, error) {
 		return -1, ErrKeyNotFound
 	}
 	if record.IsExpired(now.UnixNano()) {
-		b.db.registry.Del(key)
+		tx.db.registry.Del(key)
 		return -1, ErrKeyNotFound
 	}
 
@@ -382,24 +382,24 @@ func (b *Batch) TTL(key []byte) (time.Duration, error) {
 	return -1, nil
 }
 
-func (b *Batch) Persist(key []byte) error {
+func (tx *Transaction) Persist(key []byte) error {
 	if len(key) == 0 {
 		return ErrKeyIsEmpty
 	}
-	if b.db.closed {
+	if tx.db.closed {
 		return ErrDBClosed
 	}
-	if b.options.ReadOnly {
+	if tx.options.ReadOnly {
 		return ErrReadOnlyBatch
 	}
 
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	tx.mu.Lock()
+	defer tx.mu.Unlock()
 
 	var record *LogRecord
-	for i := len(b.pendingWrites) - 1; i >= 0; i-- {
-		if bytes.Equal(key, b.pendingWrites[i].Key) {
-			record = b.pendingWrites[i]
+	for i := len(tx.pendingWrites) - 1; i >= 0; i-- {
+		if bytes.Equal(key, tx.pendingWrites[i].Key) {
+			record = tx.pendingWrites[i]
 			break
 		}
 	}
@@ -410,11 +410,11 @@ func (b *Batch) Persist(key []byte) error {
 		}
 		record.Expire = 0
 	} else {
-		position := b.db.registry.Get(key)
+		position := tx.db.registry.Get(key)
 		if position == nil {
 			return ErrKeyNotFound
 		}
-		chunk, err := b.db.dataFiles.Read(position)
+		chunk, err := tx.db.dataFiles.Read(position)
 		if err != nil {
 			return err
 		}
@@ -422,7 +422,7 @@ func (b *Batch) Persist(key []byte) error {
 		record := decodeLogRecord(chunk)
 		now := time.Now().UnixNano()
 		if record.Type == LogRecordDeleted || record.IsExpired(now) {
-			b.db.registry.Del(record.Key)
+			tx.db.registry.Del(record.Key)
 			return ErrKeyNotFound
 		}
 		if record.Expire == 0 {
@@ -430,89 +430,89 @@ func (b *Batch) Persist(key []byte) error {
 		}
 
 		record.Expire = 0
-		b.pendingWrites = append(b.pendingWrites, record)
+		tx.pendingWrites = append(tx.pendingWrites, record)
 	}
 
 	return nil
 }
 
-func (b *Batch) Commit() error {
-	defer b.unlock()
-	if b.db.closed {
+func (tx *Transaction) Commit() error {
+	defer tx.unlock()
+	if tx.db.closed {
 		return ErrDBClosed
 	}
 
-	if b.options.ReadOnly || len(b.pendingWrites) == 0 {
+	if tx.options.ReadOnly || len(tx.pendingWrites) == 0 {
 		return nil
 	}
 
-	b.mu.Lock()
-	defer b.mu.Unlock()
+	tx.mu.Lock()
+	defer tx.mu.Unlock()
 
-	if b.iscommit {
-		return ErrBatchCommitted
+	if tx.iscommit {
+		return ErrTransactionCommitted
 	}
-	if b.isrollback {
-		return ErrBatchRollbacked
+	if tx.isrollback {
+		return ErrTransactionRollbacked
 	}
 
-	batchId := b.batchId.Generate()
+	TransactionId := tx.txId.Generate()
 	now := time.Now().UnixNano()
-	for _, record := range b.pendingWrites {
+	for _, record := range tx.pendingWrites {
 		buf := bytebufferpool.Get()
-		b.buffers = append(b.buffers, buf)
-		record.BatchId = uint64(batchId)
-		encRecord := encodeLogRecord(record, b.db.encodeHeader, buf)
-		b.db.dataFiles.PendingWrites(encRecord)
+		tx.buffers = append(tx.buffers, buf)
+		record.TxId = uint64(TransactionId)
+		encRecord := encodeLogRecord(record, tx.db.encodeHeader, buf)
+		tx.db.dataFiles.PendingWrites(encRecord)
 	}
 
 	buf := bytebufferpool.Get()
-	b.buffers = append(b.buffers, buf)
+	tx.buffers = append(tx.buffers, buf)
 	endRecord := encodeLogRecord(&LogRecord{
-		Key:  batchId.Bytes(),
-		Type: LogRecordBatchFinished,
-	}, b.db.encodeHeader, buf)
-	b.db.dataFiles.PendingWrites(endRecord)
+		Key:  TransactionId.Bytes(),
+		Type: LogRecordTransactionFinished,
+	}, tx.db.encodeHeader, buf)
+	tx.db.dataFiles.PendingWrites(endRecord)
 
-	chunkPositions, err := b.db.dataFiles.WriteAll()
+	chunkPositions, err := tx.db.dataFiles.WriteAll()
 	if err != nil {
-		b.db.dataFiles.ClearPendingWrites()
+		tx.db.dataFiles.ClearPendingWrites()
 		return err
 	}
-	if len(chunkPositions) != len(b.pendingWrites)+1 {
+	if len(chunkPositions) != len(tx.pendingWrites)+1 {
 		panic("chunk positions length is not equal to pending writes length")
 	}
 
-	if b.options.Sync && !b.db.options.Sync {
-		if err := b.db.dataFiles.Sync(); err != nil {
+	if tx.options.Sync && !tx.db.options.Sync {
+		if err := tx.db.dataFiles.Sync(); err != nil {
 			return err
 		}
 	}
 
-	for i, record := range b.pendingWrites {
+	for i, record := range tx.pendingWrites {
 		if record.Type == LogRecordDeleted || record.IsExpired(now) {
-			b.db.registry.Del(record.Key)
+			tx.db.registry.Del(record.Key)
 		} else {
-			b.db.registry.Save(record.Key, chunkPositions[i])
+			tx.db.registry.Save(record.Key, chunkPositions[i])
 		}
 
-		if b.db.options.WatchQueueSize > 0 {
-			e := &Event{Key: record.Key, Value: record.Value, BatchId: record.BatchId}
+		if tx.db.options.WatchQueueSize > 0 {
+			e := &Event{Key: record.Key, Value: record.Value, TxId: record.TxId}
 			if record.Type == LogRecordDeleted {
 				e.Action = ObserveActionDelete
 			} else {
 				e.Action = ObserveActionPut
 			}
-			b.db.observer.putEvent(e)
+			tx.db.observer.putEvent(e)
 		}
-		b.db.recordPool.Put(record)
+		tx.db.recordPool.Put(record)
 	}
 
-	b.iscommit = true
+	tx.iscommit = true
 	return nil
 }
 
-func (b *Batch) Rollback() error {
+func (b *Transaction) Rollback() error {
 	defer b.unlock()
 
 	if b.db.closed {
@@ -520,10 +520,10 @@ func (b *Batch) Rollback() error {
 	}
 
 	if b.iscommit {
-		return ErrBatchCommitted
+		return ErrTransactionCommitted
 	}
 	if b.isrollback {
-		return ErrBatchRollbacked
+		return ErrTransactionRollbacked
 	}
 
 	for _, buf := range b.buffers {

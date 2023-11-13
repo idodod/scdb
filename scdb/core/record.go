@@ -12,7 +12,7 @@ type LogRecordType = byte
 const (
 	LogRecordNormal LogRecordType = iota
 	LogRecordDeleted
-	LogRecordBatchFinished
+	LogRecordTransactionFinished
 )
 
 // type batchId keySize valueSize expire
@@ -21,11 +21,11 @@ const (
 const maxLogRecordHeaderSize = binary.MaxVarintLen32*2 + binary.MaxVarintLen64*2 + 1
 
 type LogRecord struct {
-	Key     []byte
-	Value   []byte
-	Type    LogRecordType
-	BatchId uint64
-	Expire  int64
+	Key    []byte
+	Value  []byte
+	Type   LogRecordType
+	TxId   uint64
+	Expire int64
 }
 
 func (lr *LogRecord) IsExpired(now int64) bool {
@@ -48,7 +48,7 @@ func encodeLogRecord(logRecord *LogRecord, header []byte, buf *bytebufferpool.By
 	var index = 1
 
 	// batch id
-	index += binary.PutUvarint(header[index:], logRecord.BatchId)
+	index += binary.PutUvarint(header[index:], logRecord.TxId)
 	// key size
 	index += binary.PutVarint(header[index:], int64(len(logRecord.Key)))
 	// value size
@@ -72,7 +72,7 @@ func decodeLogRecord(buf []byte) *LogRecord {
 
 	var index uint32 = 1
 	// batch id
-	batchId, n := binary.Uvarint(buf[index:])
+	txId, n := binary.Uvarint(buf[index:])
 	index += uint32(n)
 
 	// key size
@@ -97,5 +97,5 @@ func decodeLogRecord(buf []byte) *LogRecord {
 	copy(value[:], buf[index:index+uint32(valueSize)])
 
 	return &LogRecord{Key: key, Value: value, Expire: expire,
-		BatchId: batchId, Type: recordType}
+		TxId: txId, Type: recordType}
 }
