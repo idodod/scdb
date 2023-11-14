@@ -5,6 +5,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"time"
 
 	"github.com/sjy-dv/scdb/scdb/core"
 	"github.com/sjy-dv/scdb/scdb/pkg/log"
@@ -115,12 +116,24 @@ func LoadEnv() *ScLauncher {
 
 func (sc *ScLauncher) LaunchSolidCoreSystem() {
 	log.Info("This System is dependent on ", runtime.Version(), "version.")
-
+	go sc.diskInfo()
 	scLauncher = sc
 }
 
 func (sc *ScLauncher) setupLogger() {
 	log.SetLevel("debug")
+}
+
+func (sc *ScLauncher) diskInfo() {
+	ticker := time.NewTicker(time.Minute)
+	send := func() {
+		log.Debug(fmt.Sprintf("Registry: %v DiskSize: %v", sc.SCDB.Stat().KeysNum, sc.SCDB.Stat().DiskSize))
+	}
+	go send()
+	for t := range ticker.C {
+		_ = t
+		go send()
+	}
 }
 
 func (sc *ScLauncher) activeErrorLog() {

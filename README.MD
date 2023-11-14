@@ -12,3 +12,56 @@ Solid Core Database is a basic key-value database engine that is true to the fun
 - Additionally, `scdb` incorporates a process known as log file merging. Over time, as your application writes more data, the number of log files will naturally increase. Log file merging is a technique that combines these files to prevent fragmentation and maintain performance. It's like housekeeping for your data, ensuring that your storage remains organized and efficient.
 
 - So, if you're developing an application that requires speedy data writes and a simple yet robust storage solution, scdb might just be the engine you're looking for. It's built to give developers like you a hassle-free experience with the storage and retrieval of key-value pairs.
+
+## SDK versions
+
+|Scdb version| Recommended Go SDK version |
+|:-----:|:-----:|
+| 1.0.0-alpha | 1.0.0-alpha |
+
+
+### Install Scdb Go SDK
+(**We plan to create an SDK repository for SCDB in the future.**)
+1. Use `go get` to install the latest version of the Scdb Client and dependencies:
+
+   ```shell
+   go get -u github.com/sjy-dv/scdb/scdb/pkg/scdbclient/v1beta@v1.0.0-alpha
+   ```
+
+2. Include the Scdb in your application:
+
+   ```go
+   package main
+
+    import (
+	    "context"
+	    "log"
+
+	    scdbclient "github.com/sjy-dv/scdb/scdb/pkg/scdbclient/v1beta"
+    )
+
+    func main() {
+	    conn, err := scdbclient.NewScdbConn("127.0.0.1:50051")
+	    if err != nil {
+		    log.Fatal(err)
+	    }
+	    defer conn.Close()
+	    err = conn.Ping(context.Background())
+	    if err != nil {
+		    log.Fatal(err)
+	    }
+    	err = conn.Save(context.Background(), []byte("greeting"), []byte("helloworld"))
+    	if err != nil {
+	    	log.Fatal(err)
+	    }
+	    val, err := conn.Get(context.Background(), []byte("greeting"))
+	    if err != nil {
+		    log.Fatal(err)
+	    }
+	    log.Println(string(val))
+	    err = conn.Del(context.Background(), []byte("greeting"))
+	    if err != nil {
+		    log.Fatal(err)
+	    }
+    }
+   ```
