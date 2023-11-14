@@ -13,7 +13,7 @@ Solid Core Database is a basic key-value database engine that is true to the fun
 
 - So, if you're developing an application that requires speedy data writes and a simple yet robust storage solution, scdb might just be the engine you're looking for. It's built to give developers like you a hassle-free experience with the storage and retrieval of key-value pairs.
 
-[!architecture](https://www.google.com/url?sa=i&url=https%3A%2F%2Ftech-lessons.in%2Fblog%2Fbitcask%2F&psig=AOvVaw0aTP9kzzTUGMLdEX0UPJv_&ust=1700037670564000&source=images&cd=vfe&opi=89978449&ved=0CBEQjRxqFwoTCLjp-4CMw4IDFQAAAAAdAAAAABAD)
+[!architecture](https%3A%2F%2Ftech-lessons.in%2Fblog%2Fbitcask%2F&psig=AOvVaw0aTP9kzzTUGMLdEX0UPJv_&ust=1700037670564000&source=images&cd=vfe&opi=89978449&ved=0CBEQjRxqFwoTCLjp-4CMw4IDFQAAAAAdAAAAABAD)
 
 ## SDK versions
 
