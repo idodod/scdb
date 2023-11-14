@@ -6,6 +6,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/sjy-dv/scdb/scdb/launch"
+	"github.com/sjy-dv/scdb/scdb/rpc"
 )
 
 func init() {
@@ -21,4 +22,7 @@ func main() {
 func BootSystem() {
 	launcher := launch.LoadEnv()
 	launcher.LaunchSolidCoreSystem()
+	go rpc.ServeRpc(launcher)
+
+	select {}
 }
