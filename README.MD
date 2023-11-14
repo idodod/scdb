@@ -72,3 +72,5 @@ Solid Core Database is a basic key-value database engine that is true to the fun
 docker pull skj2414e954/scdb:1.0.0-alpha
 docker run -d -p 50051:50051 skj2414e954/scdb:1.0.0-alpha
 ```
+
+![img](docker.png)

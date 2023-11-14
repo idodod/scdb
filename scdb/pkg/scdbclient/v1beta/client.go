@@ -74,6 +74,5 @@ func (c *Conn) Del(ctx context.Context, key []byte) error {
 
 // Closes the connection.
 func (c *Conn) Close() error {
-	c.grpcclient = nil
-	return nil
+	return c.grpcclient.Close()
 }
