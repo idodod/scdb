@@ -26,3 +26,15 @@ func TestBasic(t *testing.T) {
 	}
 	t.Log(string(val))
 }
+
+func TestAllKeys(t *testing.T) {
+	opt := core.DefaultOptions
+	opt.DirPath = "/tmp/scdb"
+
+	db, err := core.Open(opt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+}

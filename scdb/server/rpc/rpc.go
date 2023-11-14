@@ -34,7 +34,7 @@ func ServeRpc(launcher *launch.ScLauncher) {
 }
 
 func (r RpcServerBase) Serve() {
-	lis, err := net.Listen("tcp", r.RunningPort)
+	lis, err := net.Listen("tcp", r.RunningRpcPort)
 	if err != nil {
 		log.Warn(fmt.Sprintf("FAILED START LISTENING : %v", err))
 	}

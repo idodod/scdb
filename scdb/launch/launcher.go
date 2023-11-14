@@ -11,9 +11,10 @@ import (
 )
 
 type ScLauncher struct {
-	SCDB        *core.DB
-	ErrLogCh    chan error
-	RunningPort string
+	SCDB           *core.DB
+	ErrLogCh       chan error
+	RunningRpcPort string
+	RunningTcpPort string
 }
 
 type dbConfig struct {
@@ -104,10 +105,15 @@ func LoadEnv() *ScLauncher {
 		log.Warn(fmt.Sprintf("CRITICAL SystemCrashError: %v", err))
 		os.Exit(0)
 	}
-	if os.Getenv("PORT") == "" {
-		sc.RunningPort = ":50051"
+	if os.Getenv("GRPC_PORT") == "" {
+		sc.RunningRpcPort = ":50051"
 	} else {
-		sc.RunningPort = fmt.Sprintf(":%s", os.Getenv("PORT"))
+		sc.RunningRpcPort = fmt.Sprintf(":%s", os.Getenv("GRPC_PORT"))
+	}
+	if os.Getenv("TCP_PORT") == "" {
+		sc.RunningTcpPort = ":6727"
+	} else {
+		sc.RunningTcpPort = fmt.Sprintf(":%s", os.Getenv("TCP_PORT"))
 	}
 	sc.ascii(config.PartitionSize)
 	return sc
@@ -139,8 +145,8 @@ func (sc *ScLauncher) ascii(size int64) {
 	⠀⠀⠀⠀⠀⣠⣴⣶⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣦⣄⠀⠀⠀⠀⠀
 	⠀⠀⠀⠀⠀⠙⠻⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠟⠋⠀⠀⠀⠀⠀
 	⠀⠀⠀⠀⠀⣿⣶⣤⣄⣉⣉⠙⠛⠛⠛⠛⠛⠛⠋⣉⣉⣠⣤⣶⣿⠀⠀⠀⠀⠀SCDB (SolidCoreDataBase) v1.0.0
-	⠀⠀⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀⠀
-	⠀⠀⠀⠀⠀⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠀⠀⠀⠀⠀Running in %s
+	⠀⠀⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀⠀tcp Running in %s
+	⠀⠀⠀⠀⠀⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠀⠀⠀⠀⠀gRpc Running in %s
 	⠀⠀⠀⠀⠀⣄⡉⠛⠻⠿⢿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠿⠟⠛⢉⣠⠀⠀⠀⠀⠀BasedStorageEngine: ScBitcask
 	⠀⠀⠀⠀⠀⣿⣿⣿⣶⣶⣤⣤⣤⣤⣤⣤⣤⣤⣤⣤⣶⣶⣿⣿⣿⠀⠀⠀⠀⠀"ScBitcask" is a database engine written in Golang 
 	⠀⠀⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀⠀that follows the Bitcask architecture, which is a key-value storage engine
@@ -150,5 +156,5 @@ func (sc *ScLauncher) ascii(size int64) {
 	⠀⠀⠀⠀⠀⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠀⠀⠀⠀⠀
 	⠀⠀⠀⠀⠀⠙⠻⠿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠿⠟⠋⠀⠀⠀⠀⠀
 	⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠉⠉⠛⠛⠛⠛⠉⠉⠉⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀`
-	fmt.Println(fmt.Sprintf(asciiart, sc.RunningPort, size))
+	fmt.Println(fmt.Sprintf(asciiart, sc.RunningTcpPort, sc.RunningRpcPort, size))
 }

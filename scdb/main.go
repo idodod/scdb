@@ -6,7 +6,7 @@ import (
 
 	"github.com/joho/godotenv"
 	"github.com/sjy-dv/scdb/scdb/launch"
-	"github.com/sjy-dv/scdb/scdb/rpc"
+	"github.com/sjy-dv/scdb/scdb/server/rpc"
 )
 
 func init() {
