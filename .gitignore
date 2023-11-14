@@ -1,1 +1,4 @@
 git.rule.txt
+.env
+push.sh
+sc.Dockerfile
