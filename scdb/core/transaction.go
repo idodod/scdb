@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"math/rand"
 	"sync"
 	"time"
 
@@ -31,9 +30,7 @@ func (db *DB) NewTransaction(opts TxOptions) *Transaction {
 		isrollback: false,
 	}
 	if !opts.ReadOnly {
-		node, err := sysid.NewNode(
-			rand.New(
-				rand.NewSource(time.Now().UnixNano())).Int63n(4) + 1)
+		node, err := sysid.NewNode(1)
 		if err != nil {
 			panic(fmt.Sprintf("sysid.NewNode failed: %v", err))
 		}
@@ -44,8 +41,7 @@ func (db *DB) NewTransaction(opts TxOptions) *Transaction {
 }
 
 func newTransaction() interface{} {
-	node, err := sysid.NewNode(rand.New(
-		rand.NewSource(time.Now().UnixNano())).Int63n(4) + 1)
+	node, err := sysid.NewNode(1)
 	if err != nil {
 		panic(fmt.Sprintf("sysid.NewNode failed: %v", err))
 	}
