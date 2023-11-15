@@ -20,14 +20,14 @@ Solid Core Database is a basic key-value database engine that is true to the fun
 |Scdb version| Recommended Go SDK version |
 |:-----:|:-----:|
 | 1.0.0-alpha | 1.0.0-alpha |
-
-
+|:-----:|:-----:|
+| 1.0.0 | 1.0.0-rc |
 ### Install Scdb Go SDK
 (**We plan to create an SDK repository for SCDB in the future.**)
 1. Use `go get` to install the latest version of the Scdb Client and dependencies:
 
    ```shell
-   go get -u github.com/sjy-dv/scdb/scdb/pkg/scdbclient/v1beta@v1.0.0-alpha
+   go get -u github.com/sjy-dv/scdb/scdb/pkg/scdbclient/v1@v1.0.0-rc
    ```
 
 2. Include the Scdb in your application:
@@ -39,7 +39,7 @@ Solid Core Database is a basic key-value database engine that is true to the fun
 	    "context"
 	    "log"
 
-	    scdbclient "github.com/sjy-dv/scdb/scdb/pkg/scdbclient/v1beta"
+	    scdbclient "github.com/sjy-dv/scdb/scdb/pkg/scdbclient/v1"
     )
 
     func main() {
@@ -71,8 +71,8 @@ Solid Core Database is a basic key-value database engine that is true to the fun
 ## Docker
 
 ```sh
-docker pull skj2414e954/scdb:1.0.0-alpha
-docker run -d -p 50051:50051 skj2414e954/scdb:1.0.0-alpha
+docker pull skj2414e954/scdb:latest
+docker run -d -p 50051:50051 -p 6727:6727 skj2414e954/scdb:latest
 ```
 
 ![img](docker.png)
