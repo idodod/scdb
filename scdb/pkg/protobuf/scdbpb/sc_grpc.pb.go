@@ -20,11 +20,12 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	Scdb_Ping_FullMethodName  = "/scdbpb.Scdb/Ping"
-	Scdb_Save_FullMethodName  = "/scdbpb.Scdb/Save"
-	Scdb_Get_FullMethodName   = "/scdbpb.Scdb/Get"
-	Scdb_Del_FullMethodName   = "/scdbpb.Scdb/Del"
-	Scdb_Close_FullMethodName = "/scdbpb.Scdb/Close"
+	Scdb_Ping_FullMethodName        = "/scdbpb.Scdb/Ping"
+	Scdb_Save_FullMethodName        = "/scdbpb.Scdb/Save"
+	Scdb_Get_FullMethodName         = "/scdbpb.Scdb/Get"
+	Scdb_Del_FullMethodName         = "/scdbpb.Scdb/Del"
+	Scdb_Close_FullMethodName       = "/scdbpb.Scdb/Close"
+	Scdb_Transaction_FullMethodName = "/scdbpb.Scdb/Transaction"
 )
 
 // ScdbClient is the client API for Scdb service.
@@ -36,6 +37,7 @@ type ScdbClient interface {
 	Get(ctx context.Context, in *KV, opts ...grpc.CallOption) (*Result, error)
 	Del(ctx context.Context, in *KV, opts ...grpc.CallOption) (*Result, error)
 	Close(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*Result, error)
+	Transaction(ctx context.Context, opts ...grpc.CallOption) (Scdb_TransactionClient, error)
 }
 
 type scdbClient struct {
@@ -91,6 +93,37 @@ func (c *scdbClient) Close(ctx context.Context, in *emptypb.Empty, opts ...grpc.
 	return out, nil
 }
 
+func (c *scdbClient) Transaction(ctx context.Context, opts ...grpc.CallOption) (Scdb_TransactionClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Scdb_ServiceDesc.Streams[0], Scdb_Transaction_FullMethodName, opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &scdbTransactionClient{stream}
+	return x, nil
+}
+
+type Scdb_TransactionClient interface {
+	Send(*TxIn) error
+	Recv() (*TxOut, error)
+	grpc.ClientStream
+}
+
+type scdbTransactionClient struct {
+	grpc.ClientStream
+}
+
+func (x *scdbTransactionClient) Send(m *TxIn) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *scdbTransactionClient) Recv() (*TxOut, error) {
+	m := new(TxOut)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // ScdbServer is the server API for Scdb service.
 // All implementations should embed UnimplementedScdbServer
 // for forward compatibility
@@ -100,6 +133,7 @@ type ScdbServer interface {
 	Get(context.Context, *KV) (*Result, error)
 	Del(context.Context, *KV) (*Result, error)
 	Close(context.Context, *emptypb.Empty) (*Result, error)
+	Transaction(Scdb_TransactionServer) error
 }
 
 // UnimplementedScdbServer should be embedded to have forward compatible implementations.
@@ -120,6 +154,9 @@ func (UnimplementedScdbServer) Del(context.Context, *KV) (*Result, error) {
 }
 func (UnimplementedScdbServer) Close(context.Context, *emptypb.Empty) (*Result, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Close not implemented")
+}
+func (UnimplementedScdbServer) Transaction(Scdb_TransactionServer) error {
+	return status.Errorf(codes.Unimplemented, "method Transaction not implemented")
 }
 
 // UnsafeScdbServer may be embedded to opt out of forward compatibility for this service.
@@ -223,6 +260,32 @@ func _Scdb_Close_Handler(srv interface{}, ctx context.Context, dec func(interfac
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Scdb_Transaction_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ScdbServer).Transaction(&scdbTransactionServer{stream})
+}
+
+type Scdb_TransactionServer interface {
+	Send(*TxOut) error
+	Recv() (*TxIn, error)
+	grpc.ServerStream
+}
+
+type scdbTransactionServer struct {
+	grpc.ServerStream
+}
+
+func (x *scdbTransactionServer) Send(m *TxOut) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *scdbTransactionServer) Recv() (*TxIn, error) {
+	m := new(TxIn)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // Scdb_ServiceDesc is the grpc.ServiceDesc for Scdb service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -251,6 +314,13 @@ var Scdb_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _Scdb_Close_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "Transaction",
+			Handler:       _Scdb_Transaction_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "sc/sc.proto",
 }

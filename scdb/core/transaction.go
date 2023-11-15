@@ -509,17 +509,21 @@ func (tx *Transaction) Commit() error {
 }
 
 func (b *Transaction) Rollback() error {
-	defer b.unlock()
+	defer func() {
+		if !b.iscommit {
+			b.unlock()
+		}
+	}()
 
 	if b.db.closed {
 		return ErrDBClosed
 	}
 
 	if b.iscommit {
-		return ErrTransactionCommitted
+		return nil
 	}
 	if b.isrollback {
-		return ErrTransactionRollbacked
+		return nil
 	}
 
 	for _, buf := range b.buffers {
