@@ -3,6 +3,7 @@ package rpc
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/google/uuid"
 	"github.com/sjy-dv/scdb/scdb/core"
@@ -45,15 +46,18 @@ func (internal *InternalRpcServer) Del(ctx context.Context, in *scdbpb.KV) (*scd
 func (internal *InternalRpcServer) Transaction(stream scdbpb.Scdb_TransactionServer) error {
 	var tx *core.Transaction
 	var lockID string
-	defer func() {
-		if err := tx.Rollback(); err != nil {
-			log.Warn("transaction failed to lock-id %s", lockID)
-		}
-	}()
+	// defer func() {
+	// 	if err := tx.Rollback(); err != nil {
+	// 		log.Warn("transaction failed to lock-id %s", lockID)
+	// 	}
+	// }()
 	for {
 		txstream, err := stream.Recv()
 		if err != nil {
-			return err
+			if err == io.EOF {
+				return nil
+			}
+			log.Warn(err)
 		}
 		if txstream.Begin {
 			if tx != nil {

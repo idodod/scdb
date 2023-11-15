@@ -77,9 +77,19 @@ func (c *Conn) Del(ctx context.Context, key string) error {
 	return nil
 }
 
-// Begin SCDB transaction
+// Begin SCDB transaction, return nil is begin error
 func (c *Conn) Begin() *Transaction {
 	stream, _ := c.wrap().Transaction(context.Background())
+	stream.Send(&scdbpb.TxIn{
+		Begin: true,
+	})
+	response, err := stream.Recv()
+	if err != nil {
+		return nil
+	}
+	if response.ErrorStatus {
+		return nil
+	}
 	return &Transaction{
 		txconn: stream,
 	}
