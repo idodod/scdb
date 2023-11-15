@@ -20,7 +20,6 @@ Solid Core Database is a basic key-value database engine that is true to the fun
 |Scdb version| Recommended Go SDK version |
 |:-----:|:-----:|
 | 1.0.0-alpha | 1.0.0-alpha |
-|:-----:|:-----:|
 | 1.0.0 | 1.0.0-rc |
 ### Install Scdb Go SDK
 (**We plan to create an SDK repository for SCDB in the future.**)
