@@ -1,4 +1,5 @@
 # SCDB
+![logo](scdblogo.png)
 ## _Solid Core Database System_
 
 Solid Core Database is a basic key-value database engine that is true to the fundamentals, fast, and easy to access.
