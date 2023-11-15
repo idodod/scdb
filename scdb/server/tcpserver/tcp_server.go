@@ -57,18 +57,54 @@ func (h *ServerHandler) OnWriteError(c tcpcore.Conn, data []byte, err error) {}
 
 func (h *ServerHandler) SwitchProcess(dataType *BytesRequest) ([]byte, error) {
 	switch strings.ToUpper(dataType.Method) {
+	case "PING":
+		reply, err := BytesEncode[BytesResponse](&BytesResponse{ErrorStatus: false})
+		if err != nil {
+			return nil, err
+		}
+		return reply, nil
 	case "SET":
 		err := h.launcher.SCDB.Save(dataType.Key, dataType.Value)
 		if err != nil {
-			reply, _ := BytesEncode[BytesResponse](&BytesResponse{Error: err, ErrorStatus: true})
+			reply, err := BytesEncode[BytesResponse](&BytesResponse{Error: err, ErrorStatus: true})
+			if err != nil {
+				return nil, err
+			}
 			return reply, nil
 		}
-		reply, _ := BytesEncode[BytesResponse](&BytesResponse{ErrorStatus: false})
+		reply, err := BytesEncode[BytesResponse](&BytesResponse{ErrorStatus: false})
+		if err != nil {
+			return nil, err
+		}
 		return reply, nil
 	case "GET":
-		return nil, nil
+		val, err := h.launcher.SCDB.Get(dataType.Key)
+		if err != nil {
+			reply, err := BytesEncode[BytesResponse](&BytesResponse{Error: err, ErrorStatus: true})
+			if err != nil {
+				return nil, err
+			}
+			return reply, nil
+		}
+		reply, err := BytesEncode[BytesResponse](&BytesResponse{ErrorStatus: false, Value: val})
+		if err != nil {
+			return nil, err
+		}
+		return reply, nil
 	case "DEL":
-		return nil, nil
+		err := h.launcher.SCDB.Delete(dataType.Key)
+		if err != nil {
+			reply, err := BytesEncode[BytesResponse](&BytesResponse{ErrorStatus: true, Error: err})
+			if err != nil {
+				return nil, err
+			}
+			return reply, nil
+		}
+		reply, err := BytesEncode[BytesResponse](&BytesResponse{ErrorStatus: false})
+		if err != nil {
+			return nil, err
+		}
+		return reply, nil
 	default:
 		return nil, errors.New("unknown")
 	}
