@@ -52,16 +52,16 @@ Solid Core Database is a basic key-value database engine that is true to the fun
 	    if err != nil {
 		    log.Fatal(err)
 	    }
-    	err = conn.Save(context.Background(), []byte("greeting"), []byte("helloworld"))
+    	err = conn.Save(context.Background(), "greeting", []byte("helloworld"))
     	if err != nil {
 	    	log.Fatal(err)
 	    }
-	    val, err := conn.Get(context.Background(), []byte("greeting"))
+	    val, err := conn.Get(context.Background(), "greeting")
 	    if err != nil {
 		    log.Fatal(err)
 	    }
 	    log.Println(string(val))
-	    err = conn.Del(context.Background(), []byte("greeting"))
+	    err = conn.Del(context.Background(), "greeting")
 	    if err != nil {
 		    log.Fatal(err)
 	    }
