@@ -10,6 +10,7 @@ import (
 	"github.com/sjy-dv/scdb/scdb/pkg/log"
 	"github.com/sjy-dv/scdb/scdb/pkg/protobuf/scdbpb"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 type RpcServerBase struct {
@@ -40,6 +41,7 @@ func (r RpcServerBase) Serve() {
 	}
 	grpcServer := grpc.NewServer()
 	scdbpb.RegisterScdbServer(grpcServer, r.InternalServer)
+	reflection.Register(grpcServer)
 	log.Info("SCDB Register Internal gRPC SERVER")
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
